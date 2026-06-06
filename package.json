@@ -1,0 +1,29 @@
+{
+  "name": "dock",
+  "version": "1.0.0",
+  "description": "Dock \u2014 \u9879\u76ee\u542f\u52a8\u5668",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^36.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.dock.launcher",
+    "productName": "Dock",
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.png"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.html",
+      "settings.html",
+      "assets/**"
+    ]
+  }
+}

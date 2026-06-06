@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dock — 项目启动器</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    background: #2c2c2e;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ===== 桌面壁纸 ===== */
+  .desktop {
+    width: 100%; height: 100%;
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 30%, #0f3460 60%, #1a1a2e 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ===== 菜单栏 ===== */
+  .menubar {
+    position: fixed; top: 0; left: 0; right: 0; height: 24px;
+    background: rgba(30,30,30,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex; align-items: center;
+    padding: 0 8px;
+    z-index: 1000;
+    font-size: 13px; color: #f5f5f7;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .menubar-left { display: flex; align-items: center; gap: 18px; }
+  .menubar-left .apple { font-size: 14px; cursor: default; opacity: 0.9; }
+  .menubar-left .apple:hover { opacity: 1; }
+  .menubar-menu { cursor: default; opacity: 0.85; }
+  .menubar-menu:hover { opacity: 1; }
+  .menubar-menu.bold { font-weight: 600; }
+  .menubar-right {
+    margin-left: auto; display: flex; align-items: center; gap: 12px;
+    font-size: 12px; color: #ccc;
+  }
+  .menubar-right span { cursor: default; }
+  .dock-trigger {
+    display: flex; align-items: center; gap: 3px;
+    cursor: pointer; padding: 2px 6px; border-radius: 4px;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .dock-trigger:hover { background: rgba(255,255,255,0.12); }
+  .dock-trigger svg { width: 14px; height: 14px; }
+  .dock-trigger.active { background: rgba(255,255,255,0.15); }
+  .dock-badge {
+    font-size: 11px; color: #aaa;
+  }
+
+  /* ===== 下拉菜单 ===== */
+  .dropdown {
+    position: fixed;
+    top: 28px; right: 12px;
+    width: 240px;
+    background: rgba(40,40,42,0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.1);
+    padding: 4px;
+    z-index: 1001;
+    opacity: 0; transform: translateY(-6px) scale(0.96);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .dropdown.open {
+    opacity: 1; transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  .dropdown .section-label {
+    padding: 6px 10px 2px;
+    font-size: 11px; color: #888;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 6px 0 10px;
+  }
+  .section-header .section-label { padding: 4px 0 2px; }
+  .btn-refresh {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    background: none; border: none; color: #888;
+    transition: all 0.15s;
+  }
+  .btn-refresh:hover { background: rgba(255,255,255,0.1); color: #eee; }
+  .btn-refresh svg { width: 12px; height: 12px; }
+  .btn-refresh.spinning svg { animation: spin 0.6s ease-in-out; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toolbar .btn-refresh {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    margin-right: 4px;
+  }
+  .toolbar .btn-refresh svg { width: 14px; height: 14px; }
+  .toolbar .btn-refresh:hover { background: rgba(255,255,255,0.15); }
+  .dropdown-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px; color: #eee;
+    transition: background 0.1s;
+    position: relative;
+    text-decoration: none;
+  }
+  .dropdown-item:hover { background: rgba(255,255,255,0.1); }
+  .dropdown-item .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.online { background: #30d158; box-shadow: 0 0 4px rgba(48,209,88,0.5); }
+  .status-dot.offline { background: #555; }
+  .dropdown-item .item-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dropdown-item .item-port { font-size: 11px; color: #888; flex-shrink: 0; }
+  .dropdown-item.offline-item { opacity: 0.45; cursor: default; }
+  .dropdown-item.offline-item:hover { background: transparent; }
+  .dropdown .separator {
+    height: 1px; background: rgba(255,255,255,0.08);
+    margin: 3px 6px;
+  }
+  .dropdown-item.manage-item {
+    color: #aaa; font-size: 12px;
+  }
+  .dropdown-item.manage-item svg { width: 14px; height: 14px; opacity: 0.7; }
+
+  /* ===== 管理窗口 ===== */
+  .dashboard-window {
+    position: absolute;
+    width: 580px; height: 440px;
+    background: rgba(30,30,32,0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.12);
+    display: none;
+    flex-direction: column;
+    z-index: 500;
+    overflow: hidden;
+  }
+  .dashboard-window.show { display: flex; }
+  .window-titlebar {
+    display: flex; align-items: center;
+    height: 40px; padding: 0 12px;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .window-dots {
+    display: flex; gap: 6px;
+    -webkit-app-region: no-drag;
+  }
+  .window-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    cursor: pointer; transition: filter 0.1s;
+  }
+  .window-dot.close { background: #ff5f57; }
+  .window-dot.minimize { background: #febc2e; }
+  .window-dot.zoom { background: #28c840; }
+  .window-dot:hover { filter: brightness(0.85); }
+  .window-title {
+    flex: 1; text-align: center;
+    font-size: 13px; color: #ccc; font-weight: 500;
+    margin-right: 60px;
+  }
+
+  .window-body {
+    flex: 1; padding: 16px 20px;
+    display: flex; flex-direction: column;
+    gap: 16px; overflow-y: auto;
+  }
+  .window-body::-webkit-scrollbar { width: 5px; }
+  .window-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+
+  /* 工具栏 */
+  .toolbar {
+    display: flex; gap: 10px; align-items: center;
+    flex-shrink: 0;
+  }
+  .search-box {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.06); border-radius: 6px;
+    padding: 7px 12px; border: 1px solid rgba(255,255,255,0.08);
+  }
+  .search-box:focus-within { border-color: rgba(255,255,255,0.2); }
+  .search-box svg { width: 14px; height: 14px; opacity: 0.5; flex-shrink: 0; }
+  .search-box input {
+    background: none; border: none; outline: none;
+    color: #eee; font-size: 13px; width: 100%;
+    font-family: inherit;
+  }
+  .search-box input::placeholder { color: #666; }
+  .btn {
+    padding: 7px 14px; border-radius: 6px; border: none;
+    font-size: 13px; cursor: pointer; font-family: inherit;
+    font-weight: 500; white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-primary {
+    background: #0a84ff; color: #fff;
+  }
+  .btn-primary:hover { background: #409cff; }
+  .btn-ghost {
+    background: rgba(255,255,255,0.06); color: #ccc;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+
+  /* 项目列表 */
+  .project-list {
+    display: flex; flex-direction: column;
+    gap: 6px; flex: 1; overflow-y: auto;
+  }
+  .project-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .project-card:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); }
+  .project-card .card-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .card-dot.online { background: #30d158; box-shadow: 0 0 6px rgba(48,209,88,0.4); }
+  .card-dot.offline { background: #555; }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name {
+    font-size: 14px; color: #eee; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-meta {
+    font-size: 11px; color: #888; margin-top: 2px;
+    display: flex; gap: 12px;
+  }
+  .card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .card-btn {
+    padding: 5px 10px; border-radius: 5px; border: none;
+    font-size: 12px; cursor: pointer; font-family: inherit;
+    transition: background 0.15s;
+  }
+  .card-btn.open { background: rgba(10,132,255,0.15); color: #409cff; }
+  .card-btn.open:hover { background: rgba(10,132,255,0.25); }
+  .card-btn.edit { background: rgba(255,255,255,0.05); color: #aaa; }
+  .card-btn.edit:hover { background: rgba(255,255,255,0.1); color: #ccc; }
+  .card-btn.del { background: rgba(255,69,58,0.08); color: #ff6961; }
+  .card-btn.del:hover { background: rgba(255,69,58,0.18); }
+
+  /* 添加表单 */
+  .add-form {
+    display: none;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 14px;
+    flex-shrink: 0;
+  }
+  .add-form.show { display: block; }
+  .form-row {
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .form-field { flex: 1; }
+  .form-field label {
+    display: block; font-size: 11px; color: #888;
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .form-field input {
+    width: 100%; padding: 7px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 5px; color: #eee; font-size: 13px;
+    font-family: inherit; outline: none;
+  }
+  .form-field input:focus { border-color: #0a84ff; }
+  .form-field input::placeholder { color: #555; }
+  .form-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: rgba(50,50,52,0.95); color: #eee; padding: 10px 20px;
+    border-radius: 8px; font-size: 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 2000;
+  }
+  .toast.show { opacity: 1; }
+
+  /* 桌面快捷方式 */
+  .desktop-shortcut {
+    position: absolute; top: 60px; left: 40px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; padding: 4px; border-radius: 6px;
+    transition: background 0.15s;
+    width: 80px;
+  }
+  .desktop-shortcut:hover { background: rgba(255,255,255,0.06); }
+  .shortcut-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  }
+  .shortcut-icon svg { width: 28px; height: 28px; }
+  .shortcut-label {
+    font-size: 11px; color: #ccc; text-align: center;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  /* 无结果 */
+  .empty-state {
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; gap: 10px;
+    color: #666;
+  }
+  .empty-state.show { display: flex; }
+  .empty-state svg { width: 40px; height: 40px; opacity: 0.3; }
+  .empty-state p { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="desktop" id="desktop">
+
+  <!-- ===== 菜单栏 ===== -->
+  <div class="menubar" id="menubar">
+    <div class="menubar-left">
+      <span class="apple">🍎</span>
+      <span class="menubar-menu bold">Dock</span>
+      <span class="menubar-menu">文件</span>
+      <span class="menubar-menu">编辑</span>
+      <span class="menubar-menu">视图</span>
+      <span class="menubar-menu">窗口</span>
+      <span class="menubar-menu">帮助</span>
+    </div>
+    <div class="menubar-right">
+      <span>🔋 100%</span>
+      <span>Wi-Fi</span>
+      <span id="clock">周五 14:30</span>
+      <div class="dock-trigger" id="dockTrigger" title="Dock — 项目启动器">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v1.2c-1.9 1-3.2 3-3.2 5.3v3.7c0 .6-.4 1-1 1s-1 .4-1 1v2h18.4v-2c0-.6-.4-1-1-1s-1-.4-1-1v-3.7c0-2.3-1.3-4.3-3.2-5.3V5a3 3 0 0 0-3-3z"/>
+          <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 下拉菜单 ===== -->
+  <div class="dropdown" id="dropdown">
+    <div class="section-header">
+      <span class="section-label">项目</span>
+      <button class="btn-refresh" id="btnRefreshMenu" title="刷新状态">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
+    <div id="menuProjects"></div>
+    <div class="separator"></div>
+    <div class="dropdown-item manage-item" id="openDashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      <span class="item-name">管理项目</span>
+    </div>
+    <div class="dropdown-item manage-item" id="quitApp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="item-name">退出 Dock</span>
+    </div>
+  </div>
+
+  <!-- ===== 桌面快捷方式 ===== -->
+  <div class="desktop-shortcut" id="desktopIcon" title="Dock">
+    <div class="shortcut-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a3 3 0 0 0-3 3v1.2c-1.9 1-3.2 3-3.2 5.3v3.7c0 .6-.4 1-1 1s-1 .4-1 1v2h18.4v-2c0-.6-.4-1-1-1s-1-.4-1-1v-3.7c0-2.3-1.3-4.3-3.2-5.3V5a3 3 0 0 0-3-3z"/>
+        <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+      </svg>
+    </div>
+    <span class="shortcut-label">Dock</span>
+  </div>
+
+  <!-- ===== 管理窗口 ===== -->
+  <div class="dashboard-window" id="dashboard">
+    <div class="window-titlebar" id="titlebar">
+      <div class="window-dots">
+        <div class="window-dot close" id="winClose"></div>
+        <div class="window-dot minimize"></div>
+        <div class="window-dot zoom"></div>
+      </div>
+      <div class="window-title">项目管理</div>
+    </div>
+    <div class="window-body">
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="searchInput" placeholder="搜索项目...">
+        </div>
+        <button class="btn-refresh" id="btnRefreshDash" title="刷新状态">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
+        <button class="btn btn-primary" id="btnAdd">+ 添加项目</button>
+      </div>
+
+      <div class="add-form" id="addForm">
+        <div class="form-row">
+          <div class="form-field">
+            <label>项目名称</label>
+            <input type="text" id="inputName" placeholder="例如：个人博客">
+          </div>
+          <div class="form-field">
+            <label>端口</label>
+            <input type="number" id="inputPort" placeholder="例如：4321">
+          </div>
+          <div class="form-field">
+            <label>描述</label>
+            <input type="text" id="inputDesc" placeholder="可选">
+          </div>
+          <div class="form-field">
+            <label>启动命令</label>
+            <input type="text" id="inputCommand" placeholder="例如：npm run dev">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" id="btnCancelAdd">取消</button>
+          <button class="btn btn-primary" id="btnSave">保存</button>
+        </div>
+      </div>
+
+      <div class="project-list" id="projectList"></div>
+      <div class="empty-state" id="emptyState">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <p>还没有项目，点击上方按钮添加</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+</div>
+
+<script>
+  // ---- 默认数据 ----
+  const defaultProjects = [
+    { id: '1', name: 'Open Claw', port: 3000, desc: 'Claw 前端项目', command: 'npm run dev' },
+    { id: '2', name: '个人博客', port: 4321, desc: 'Astro 静态博客', command: 'npm run dev' },
+    { id: '3', name: 'Note App', port: 5173, desc: 'Vite + React 笔记', command: 'npm run dev' },
+    { id: '4', name: 'API Server', port: 8080, desc: 'Express 后端服务', command: 'npm start' },
+  ];
+
+  let projects = JSON.parse(localStorage.getItem('dock-projects') || 'null') || defaultProjects;
+  let editingId = null;
+
+  function save() {
+    localStorage.setItem('dock-projects', JSON.stringify(projects));
+  }
+
+  // ---- 域名 ----
+  function renderMenu() {
+    const container = document.getElementById('menuProjects');
+    container.innerHTML = projects.map(p => {
+      const online = getPortStatus(p.port);
+      const cls = online ? 'online' : 'offline-item';
+      const statusCls = online ? 'online' : 'offline';
+      const onClick = online ? `onclick="openProject(${p.port})"` : '';
+      return `<div class="dropdown-item ${cls}" ${onClick}>
+        <span class="status-dot ${statusCls}"></span>
+        <span class="item-name">${esc(p.name)}</span>
+        <span class="item-port">:${p.port}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderDashboard() {
+    const list = document.getElementById('projectList');
+    const empty = document.getElementById('emptyState');
+    const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const filtered = projects.filter(p => p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q));
+
+    if (filtered.length === 0) {
+      list.innerHTML = '';
+      empty.classList.add('show');
+    } else {
+      empty.classList.remove('show');
+      list.innerHTML = filtered.map(p => {
+        const online = getPortStatus(p.port);
+        const dotCls = online ? 'online' : 'offline';
+        return `<div class="project-card">
+          <div class="card-dot ${dotCls}"></div>
+          <div class="card-info">
+            <div class="card-name">${esc(p.name)}</div>
+            <div class="card-meta">
+              <span>端口 ${p.port}</span>
+              <span>${online ? '● 在线' : '○ 离线'}</span>
+              ${p.desc ? `<span>${esc(p.desc)}</span>` : ''}
+            </div>
+          </div>
+          <div class="card-actions">
+            ${online ? `<button class="card-btn open" onclick="openProject(${p.port})">打开</button>` : ''}
+            ${p.command ? `<button class="card-btn start" onclick="startProject('${p.id}')">启动</button>` : ''}
+            <button class="card-btn edit" onclick="editProject('${p.id}')">编辑</button>
+            <button class="card-btn del" onclick="deleteProject('${p.id}')">删除</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function renderAll() {
+    renderMenu();
+    renderDashboard();
+    checkAllPorts();
+  }
+
+  // ---- 端口检测（真实） ----
+  // 用 Image 加载探测 localhost 端口是否在监听
+  let portCache = {};
+
+  function getPortStatus(port) {
+    if (portCache[port] !== undefined) return portCache[port];
+    // 未检测过的先返回 false，异步探测
+    checkPortAsync(port);
+    return false;
+  }
+
+  function checkPortAsync(port) {
+    const img = new Image();
+    img.onload = () => {
+      portCache[port] = true;
+      renderMenu();
+      renderDashboard();
+    };
+    img.onerror = () => {
+      portCache[port] = false;
+      renderMenu();
+      renderDashboard();
+    };
+    img.src = `http://localhost:${port}/favicon.ico?t=${Date.now()}`;
+  }
+
+  function checkAllPorts() {
+    projects.forEach(p => checkPortAsync(p.port));
+  }
+
+  // ---- 打开项目（浏览器新标签） ----
+  function openProject(port) {
+    const url = `http://localhost:${port}`;
+    toast(`正在打开 ${url} …`);
+    window.open(url, '_blank');
+  }
+
+  // ---- 启动项目 ----
+  function startProject(id) {
+    const p = projects.find(p => p.id === id);
+    if (!p || !p.command) return;
+    toast(`启动命令: ${p.command}（Electron 版将直接执行）`);
+    navigator.clipboard?.writeText(p.command);
+  }
+
+  // ---- 编辑/删除 ----
+  function editProject(id) {
+    const p = projects.find(p => p.id === id);
+    if (!p) return;
+    editingId = id;
+    document.getElementById('inputName').value = p.name;
+    document.getElementById('inputPort').value = p.port;
+    document.getElementById('inputDesc').value = p.desc || '';
+    document.getElementById('inputCommand').value = p.command || '';
+    document.getElementById('addForm').classList.add('show');
+    document.getElementById('btnSave').textContent = '更新';
+    document.getElementById('dashboard').scrollIntoView?.()
+  }
+
+  function deleteProject(id) {
+    if (!confirm('确定删除这个项目？')) return;
+    projects = projects.filter(p => p.id !== id);
+    save(); renderAll();
+    toast('项目已删除');
+  }
+
+  // ---- 添加/保存 ----
+  document.getElementById('btnAdd').addEventListener('click', () => {
+    editingId = null;
+    document.getElementById('inputName').value = '';
+    document.getElementById('inputPort').value = '';
+    document.getElementById('inputDesc').value = '';
+    document.getElementById('inputCommand').value = '';
+    document.getElementById('btnSave').textContent = '保存';
+    document.getElementById('addForm').classList.add('show');
+  });
+
+  document.getElementById('btnCancelAdd').addEventListener('click', () => {
+    document.getElementById('addForm').classList.remove('show');
+    editingId = null;
+  });
+
+  document.getElementById('btnSave').addEventListener('click', () => {
+    const name = document.getElementById('inputName').value.trim();
+    const port = parseInt(document.getElementById('inputPort').value, 10);
+    const desc = document.getElementById('inputDesc').value.trim();
+    const command = document.getElementById('inputCommand').value.trim();
+
+    if (!name || !port) { toast('请填写项目名称和端口'); return; }
+    if (projects.some(p => p.port === port && p.id !== editingId)) {
+      toast('端口已被占用'); return;
+    }
+
+    if (editingId) {
+      const p = projects.find(p => p.id === editingId);
+      if (p) { p.name = name; p.port = port; p.desc = desc; p.command = command; }
+      editingId = null;
+      toast('项目已更新');
+    } else {
+      projects.push({ id: Date.now().toString(), name, port, desc, command });
+      toast('项目已添加');
+    }
+
+    save(); renderAll();
+    document.getElementById('addForm').classList.remove('show');
+  });
+
+  // ---- 搜索 ----
+  document.getElementById('searchInput').addEventListener('input', renderDashboard);
+
+  // ---- 菜单栏下拉 ----
+  const trigger = document.getElementById('dockTrigger');
+  const dropdown = document.getElementById('dropdown');
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+    trigger.classList.toggle('active');
+    renderMenu();
+    checkAllPorts();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== trigger) {
+      dropdown.classList.remove('open');
+      trigger.classList.remove('active');
+    }
+  });
+
+  // ---- 管理窗口 ----
+  const dashboard = document.getElementById('dashboard');
+  document.getElementById('openDashboard').addEventListener('click', () => {
+    dashboard.classList.add('show');
+    dashboard.style.top = '80px';
+    dashboard.style.left = '120px';
+    dropdown.classList.remove('open');
+    trigger.classList.remove('active');
+    renderDashboard();
+  });
+
+  document.getElementById('desktopIcon').addEventListener('dblclick', () => {
+    dashboard.classList.add('show');
+    dashboard.style.top = '80px';
+    dashboard.style.left = '120px';
+    renderDashboard();
+  });
+
+  document.getElementById('winClose').addEventListener('click', () => {
+    dashboard.classList.remove('show');
+  });
+
+  // ---- 刷新按钮 ----
+  function refreshAll() {
+    const btns = document.querySelectorAll('.btn-refresh');
+    btns.forEach(b => b.classList.add('spinning'));
+    setTimeout(() => btns.forEach(b => b.classList.remove('spinning')), 600);
+    portCache = {};
+    renderMenu();
+    renderDashboard();
+    checkAllPorts();
+    toast('正在检测端口…');
+  }
+
+  document.getElementById('btnRefreshMenu').addEventListener('click', refreshAll);
+  document.getElementById('btnRefreshDash').addEventListener('click', refreshAll);
+
+  // ---- 退出 ----
+  document.getElementById('quitApp').addEventListener('click', () => {
+    toast('Dock 已退出（原型演示）');
+    dropdown.classList.remove('open');
+  });
+
+  // ---- 窗口拖动 ----
+  let drag = false, ox = 0, oy = 0;
+  document.getElementById('titlebar').addEventListener('mousedown', (e) => {
+    if (e.target.closest('.window-dot')) return;
+    drag = true;
+    const rect = dashboard.getBoundingClientRect();
+    ox = e.clientX - rect.left;
+    oy = e.clientY - rect.top;
+    dashboard.style.transition = 'none';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!drag) return;
+    dashboard.style.left = (e.clientX - ox) + 'px';
+    dashboard.style.top = (e.clientY - oy) + 'px';
+  });
+  window.addEventListener('mouseup', () => {
+    drag = false;
+    dashboard.style.transition = '';
+  });
+
+  // ---- 时钟 ----
+  function updateClock() {
+    const now = new Date();
+    const weekdays = ['周日','周一','周二','周三','周四','周五','周六'];
+    const h = now.getHours().toString().padStart(2,'0');
+    const m = now.getMinutes().toString().padStart(2,'0');
+    document.getElementById('clock').textContent = `${weekdays[now.getDay()]} ${h}:${m}`;
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
+
+  // ---- Toast ----
+  let toastTimer;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+  }
+
+  // ---- 工具 ----
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // ---- 初始化 ----
+  renderAll();
+
+  console.log('🚀 Dock 原型已就绪');
+  console.log('  - 点击菜单栏火箭图标 → 下拉项目列表');
+  console.log('  - 双击桌面 Dock 图标 → 管理窗口');
+  console.log('  - 下拉菜单中点击 "管理项目" → 管理窗口');
+</script>
+</body>
+</html>
