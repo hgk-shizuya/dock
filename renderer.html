@@ -355,7 +355,7 @@
       </div>`;
     }).join('');
 
-    list.querySelectorAll('.card-btn.folder').forEach(btn => {
+    list.querySelectorAll('.card-btn.folder[data-path]').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); window.dockAPI.openPath(btn.dataset.path); });
     });
     list.querySelectorAll('.card-btn.open').forEach(btn => {
@@ -371,7 +371,7 @@
     // 右键菜单
     list.querySelectorAll('.project-card').forEach(card => {
       card.addEventListener('click', (e) => {
-        const pathBtn = card.querySelector('.card-btn.folder');
+        const pathBtn = card.querySelector('.card-btn.folder[data-path]');
         if (pathBtn && !e.target.closest('button')) {
           window.dockAPI.openPath(pathBtn.dataset.path);
         }
