@@ -164,8 +164,7 @@
   .card-btn.folder.no-path:hover { background: transparent !important; color: var(--text-dim) !important; }
   body.theme-light .card-btn.folder.no-path { opacity: 0.3; background: transparent !important; color: #bbb !important; border: 1px dashed rgba(0,0,0,0.1); }
 
-  .add-form { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; flex-shrink: 0; }
-  .add-form.show { display: block !important; }
+  .add-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; flex-shrink: 0; }
   .form-row { display: flex; gap: 10px; align-items: flex-end; }
   .form-field { flex: 1; }
   .form-field label { display: block; font-size: 11px; color: var(--text-tertiary); margin-bottom: 3px; }
@@ -177,29 +176,27 @@
   .form-btns { display: flex; gap: 6px; align-items: flex-end; }
 
   .scan-results {
-    display: none; flex-direction: column;
+    flex-direction: column;
     background: var(--bg-overlay); border: 1px solid var(--border);
     border-radius: 8px; padding: 12px; flex-shrink: 0; max-height: 150px; overflow: hidden;
   }
-  .scan-results.show { display: flex; }
-  .scan-item { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
   .scan-item:hover { background: var(--bg-input); }
   .scan-item.selected { border-color: var(--accent); background: var(--accent-ghost); }
   .scan-item.existed { opacity: 0.4; cursor: default; }
   .scan-item.existed:hover { background: transparent; }
   .scan-check-mark { color: var(--accent); font-size: 12px; font-weight: bold; visibility: hidden; }
   .scan-item.selected .scan-check-mark { visibility: visible; }
-  .scan-path { font-size: 10px; color: var(--text-muted); width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; text-align: right; }
+  .scan-path { display: none; }
   .scan-exists { font-size: 11px; color: var(--text-muted); margin-left: auto; }
   .scan-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-shrink: 0; }
   .scan-title { font-size: 12px; color: var(--text-sub); }
-  .scan-list { display: flex; flex-wrap: wrap; gap: 6px; overflow-y: auto; flex: 1; }
+  .scan-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow-y: auto; flex: 1; align-content: start; }
   .scan-list::-webkit-scrollbar { width: 4px; }
   .scan-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
   .scan-item {
-    display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 5px;
+    display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     background: var(--bg-card); border: 1px solid var(--bg-input);
-    font-size: 12px; cursor: pointer; transition: background 0.15s; white-space: nowrap;
+    font-size: 12px; cursor: pointer; transition: background 0.15s;
   }
   .scan-item:hover { background: var(--accent-scan-hover); border-color: var(--accent-ghost-hover); }
   .scan-item .scan-process { color: var(--text-meta); font-size: 10px; }
@@ -220,7 +217,7 @@
   .fab:hover { background: var(--accent-hover); transform: scale(1.05); }
   .fab svg { width: 20px; height: 20px; }
   .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 14px; }
-  body.batch-mode .add-form:not(.show), body.batch-mode #btnAdd { display: none; }
+  
 </style>
 </head>
 <body>
@@ -264,7 +261,7 @@
     <div class="empty">加载中…</div>
   </div>
 
-  <div class="scan-results" id="scanResults">
+  <div class="scan-results" id="scanResults" style="display:none">
     <div class="scan-header">
       <span class="scan-title">发现 <span id="scanCount">0</span> 个可用端口</span>
       <div style="display:flex;gap:6px;align-items:center;">
@@ -282,7 +279,7 @@
     <button class="btn btn-primary" id="btnBatchDelExec" style="background:#ff453a;font-size:12px;padding:5px 12px;">删除选中</button>
     <button class="btn btn-ghost" id="btnBatchCancel" style="font-size:12px;padding:5px 12px;border-color:rgba(255,255,255,0.2);">退出批量</button>
   </div>
-  <div class="add-form" id="addForm">
+  <div class="add-form" id="addForm" style="display:none">
     <div class="form-row">
       <div class="form-field"><label>项目名称</label><input type="text" id="inputName" placeholder="如：Open Claw"></div>
       <div class="form-field" style="max-width:120px"><label>端口号</label><input type="number" id="inputPort" placeholder="如：3000"></div>
@@ -371,9 +368,12 @@
     // 右键菜单
     list.querySelectorAll('.project-card').forEach(card => {
       card.addEventListener('click', (e) => {
-        const pathBtn = card.querySelector('.card-btn.folder[data-path]');
-        if (pathBtn && !e.target.closest('button')) {
-          window.dockAPI.openPath(pathBtn.dataset.path);
+        // 点卡片空白处 → 启动项目（打开浏览器）
+        if (!e.target.closest('button')) {
+          const openBtn = card.querySelector('.card-btn.open');
+          if (openBtn && openBtn.dataset.port) {
+            openProject(parseInt(openBtn.dataset.port));
+          }
         }
       });
       card.addEventListener('contextmenu', (e) => {
@@ -414,6 +414,19 @@
     await window.dockAPI.saveProjects(projects);
   }
 
+  function showForm() {
+    // 关闭其他面板，互斥
+    document.getElementById('scanResults').style.display = 'none';
+    if (batchMode) exitBatchMode();
+    document.getElementById('btnAdd').style.display = 'none';
+    document.getElementById('addForm').style.display = 'block';
+  }
+  function hideForm() {
+    document.getElementById('addForm').style.display = 'none';
+    document.getElementById('btnAdd').style.display = '';
+    editingId = null;
+  }
+
   function openProject(port) {
     window.dockAPI.openExternal(`http://localhost:${port}`);
     toast(`已打开 localhost:${port}`);
@@ -428,8 +441,7 @@
     document.getElementById('inputDesc').value = p.desc || '';
     document.getElementById('inputPath').value = p.path || '';
     document.getElementById('btnSave').textContent = '更新';
-    document.getElementById('addForm').classList.add('show');
-    document.getElementById('btnAdd').style.display = 'none';
+    showForm();
   }
 
   async function deleteProject(id) {
@@ -448,14 +460,11 @@
     document.getElementById('inputDesc').value = '';
     document.getElementById('inputPath').value = '';
     document.getElementById('btnSave').textContent = '保存';
-    document.getElementById('addForm').classList.add('show');
-    document.getElementById('btnAdd').style.display = 'none';
+    showForm();
   });
 
   document.getElementById('btnCancelAdd').addEventListener('click', () => {
-    document.getElementById('addForm').classList.remove('show');
-    editingId = null;
-    document.getElementById('btnAdd').style.display = '';
+    hideForm();
   });
 
   // Enter key submits form
@@ -478,15 +487,16 @@
       projects.push({ id: Date.now().toString(), name, port, desc, path: pth });
       toast('项目已添加');
     }
-    await saveProjects(); await refreshStatus(); render();
-    document.getElementById('addForm').classList.remove('show');
+    hideForm();
+            await saveProjects(); await refreshStatus(); render();
     // Remove matching scan item
     document.querySelectorAll('.scan-item').forEach(si => { if (parseInt(si.dataset.port) === port) si.remove(); });
     const remaining = document.querySelectorAll('.scan-item').length;
     document.getElementById('scanCount').textContent = remaining;
     updateScanToggle();
     if (remaining === 0) {
-      document.getElementById('scanList').innerHTML = '<span style="font-size:11px;color:var(--text-muted);padding:4px 0;">没有发现新的可用端口</span>';
+      document.getElementById('scanResults').style.display = 'none';
+  if (document.getElementById('addForm').style.display !== 'block') document.getElementById('btnAdd').style.display = '';
     }
   });
 
@@ -519,8 +529,8 @@
       const list = document.getElementById('scanList');
       const count = document.getElementById('scanCount');
       if (found.length === 0) {
-        count.textContent = '0';
-        list.innerHTML = '<span style="font-size:11px;color:var(--text-muted);padding:4px 0;">没有发现新的可用端口</span>';
+        setTimeout(() => btn.classList.remove('spinning'), 600);
+        return;
       } else {
         count.textContent = found.length;
         list.innerHTML = found.map(f => {
@@ -554,8 +564,10 @@
             const pth = item.dataset.path || '';
             if (projects.some(p => p.port === port)) { toast('端口已存在'); return; }
             projects.push({ id: Date.now().toString(), name: proc || '未命名', port, desc: '', path: pth });
+            hideForm();
             await saveProjects(); await refreshStatus(); render();
-            document.getElementById('scanResults').classList.remove('show');
+            document.getElementById('scanResults').style.display = 'none';
+  if (document.getElementById('addForm').style.display !== 'block') document.getElementById('btnAdd').style.display = '';
             toast('已添加: ' + (proc || port));
           });
         });
@@ -573,12 +585,11 @@
             document.getElementById('inputDesc').value = '';
             document.getElementById('inputPath').value = pth;
             document.getElementById('btnSave').textContent = '保存';
-            document.getElementById('addForm').classList.add('show');
-    document.getElementById('btnAdd').style.display = 'none';
+            showForm();
           });
         });
       }
-      results.classList.add('show');
+      document.getElementById('addForm').style.display = 'none'; editingId = null; results.style.display = 'flex'; document.getElementById('btnAdd').style.display = 'none';
         updateScanToggle();
     } catch (e) {
       toast('扫描失败: ' + e.message);
@@ -587,7 +598,8 @@
   });
 
   document.getElementById('btnCloseScan').addEventListener('click', () => {
-    document.getElementById('scanResults').classList.remove('show');
+    document.getElementById('scanResults').style.display = 'none';
+  if (document.getElementById('addForm').style.display !== 'block') document.getElementById('btnAdd').style.display = '';
   });
 
   let toastTimer;
@@ -649,7 +661,8 @@
       await saveProjects();
       await refreshStatus();
       render();
-      document.getElementById('scanResults').classList.remove('show');
+      document.getElementById('scanResults').style.display = 'none';
+  if (document.getElementById('addForm').style.display !== 'block') document.getElementById('btnAdd').style.display = '';
       toast('已添加 ' + added + ' 个项目');
     } else {
       toast('没有选中可添加的项目');
@@ -688,25 +701,19 @@
   });
 
   // ---- 点击空白关闭面板 ----
-  document.addEventListener('click', (e) => {
-    const target = e.target;
-    // Close scan results if click outside
-    const scanRes = document.getElementById('scanResults');
-    const scanBtn = document.getElementById('btnScan');
-    if (scanRes.classList.contains('show') && !scanRes.contains(target) && target !== scanBtn && !scanBtn.contains(target) && !target.closest('.scan-item')) {
-      scanRes.classList.remove('show');
-    }
-    // Close add form if click outside form & add button & scan items
-    const addForm = document.getElementById('addForm');
-    const addBtn = document.getElementById('btnAdd');
-    if (addForm.classList.contains('show') && !addForm.contains(target) && target !== addBtn && !addBtn.contains(target) && !target.closest('.scan-item')) {
-      addForm.classList.remove('show');
-      editingId = null;
-    }
-    // Clear search on empty click
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput.value && !target.closest('.search-box') && !target.closest('.project-card') && !target.closest('button') && !target.closest('input') && !target.closest('select') && !target.closest('.scan-item') && !target.closest('.add-form')) {
-      searchInput.value = '';
+  document.body.addEventListener('click', (e) => {
+    // 点击面板内部或交互元素 → 不处理
+    if (e.target.closest('.add-form, .scan-results, #btnAdd, #btnScan, .toolbar, .fab, .toast, .scan-item, .project-card, .batch-bar, .search-box')) return;
+
+    const form = document.getElementById('addForm');
+    const scan = document.getElementById('scanResults');
+    if (scan.style.display === 'flex') scan.style.display = 'none';
+    if (form.style.display === 'block') hideForm();
+
+    // 清空搜索
+    const si = document.getElementById('searchInput');
+    if (si.value) {
+      si.value = '';
       clearTimeout(searchTimer);
       render();
     }
@@ -717,8 +724,7 @@
       document.getElementById('searchInput').value = '';
       clearTimeout(searchTimer);
       render();
-      document.getElementById('addForm').classList.remove('show');
-      editingId = null;
+      hideForm();
     }
   });
 
@@ -737,6 +743,9 @@
   });
   document.getElementById('btnBatchDelete').addEventListener('click', () => {
     batchMode = true;
+    document.getElementById('btnAdd').style.display = 'none';
+    document.getElementById('scanResults').style.display = 'none';
+    document.getElementById('addForm').style.display = 'none'; editingId = null;
     document.body.classList.add('batch-mode');
     document.getElementById('batchBar').classList.add('show');
     document.querySelectorAll('.project-card').forEach(c => c.classList.remove('selected'));
@@ -749,7 +758,8 @@
     if (!confirm('确定删除选中的 ' + selected.length + ' 个项目？')) return;
     const ids = Array.from(selected).map(c => c.dataset.id);
     projects = projects.filter(p => !ids.includes(p.id));
-    await saveProjects(); await refreshStatus(); render();
+    hideForm();
+            await saveProjects(); await refreshStatus(); render();
     exitBatchMode();
     toast('已删除 ' + ids.length + ' 个项目');
   });

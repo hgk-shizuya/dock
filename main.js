@@ -40,27 +40,26 @@ function writeProjects(projects) {
 let tray = null;
 let dashWindow = null;
 let settingsWindow = null;
+let lastStatuses = {};
 
 // ---- 端口检测 ----
-function checkPort(port) {
+// 一次 lsof 查所有端口，避免每个端口单独起子进程
+function getLsofOutput() {
   try {
-    const out = execSync('lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null', {
-      encoding: 'utf8', timeout: 2000
+    return execSync('lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null', {
+      encoding: 'utf8', timeout: 3000
     });
-    const re = new RegExp(':' + port + '\\s*\\(LISTEN\\)');
-    return Promise.resolve(re.test(out));
-  } catch(e) {
-    return Promise.resolve(false);
+  } catch (e) {
+    return e.stdout || '';
   }
 }
 
 async function getPortStatuses(projects) {
+  const out = getLsofOutput();
   const results = {};
-  await Promise.all(
-    projects.map(async (p) => {
-      results[p.port] = await checkPort(p.port);
-    })
-  );
+  for (const p of projects) {
+    results[p.port] = new RegExp(':' + p.port + '\\s*\\(LISTEN\\)').test(out);
+  }
   return results;
 }
 
@@ -109,10 +108,6 @@ async function buildMenu() {
     { label: '刷新状态', click: () => buildMenu() },
     { label: '管理项目', click: () => openDashboard() },
     { type: 'separator' },
-    { type: 'separator' },
-      { label: '开机自启', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
-        click: (mi) => app.setLoginItemSettings({ openAtLogin: mi.checked }) },
-      { type: 'separator' },
       { label: '开机自启', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
         click: (mi) => app.setLoginItemSettings({ openAtLogin: mi.checked }) },
       { label: '退出 Dock', click: () => app.quit() },
@@ -123,6 +118,8 @@ async function buildMenu() {
 // ---- 管理窗口 ----
 function openDashboard() {
   if (dashWindow) {
+    dashWindow.restore();
+    dashWindow.show();
     dashWindow.focus();
     return;
   }
@@ -168,17 +165,23 @@ function openSettings() {
 }
 
 // ---- IPC ----
-ipcMain.handle('check-port', async (_e, port) => checkPort(port));
+ipcMain.handle('check-port', async (_e, port) => {
+  return new Promise((resolve) => {
+    const sock = new net.Socket();
+    sock.setTimeout(1500);
+    sock.on('connect', () => { sock.destroy(); resolve(true); });
+    sock.on('error', () => { sock.destroy(); resolve(false); });
+    sock.on('timeout', () => { sock.destroy(); resolve(false); });
+    sock.connect(port, '127.0.0.1');
+  });
+});
 
 ipcMain.handle('check-all-ports', async (_e, ports) => {
+  const out = getLsofOutput();
   const results = {};
-  const list = await Promise.all(
-    ports.map(async (p) => {
-      const online = await checkPort(p);
-      return { port: p, online };
-    })
-  );
-  list.forEach(({ port, online }) => { results[port] = online; });
+  for (const p of ports) {
+    results[p] = new RegExp(':' + p + '\\s*\\(LISTEN\\)').test(out);
+  }
   return results;
 });
 
@@ -338,7 +341,7 @@ app.whenReady().then(() => {
   buildMenu();
   const settings = readSettings();
   if (settings.openWindowOnStart !== false) openDashboard();
-  setInterval(() => { buildMenu(); }, 30000);
+  setInterval(() => { buildMenu(); checkAndNotify(); }, 30000);
   // 首次状态检测
   setTimeout(() => { getPortStatuses(readProjects()).then(s => { lastStatuses = s; }); }, 5000);
 });

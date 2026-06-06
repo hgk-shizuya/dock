@@ -57,18 +57,21 @@
 - 配置持久化 → `~/.dock/projects.json`
 - 导出/导入 JSON → 备份迁移一键完成
 - 开机自启、启动时打开窗口（可选）
-- 窗口宽度刚好三列卡片，滚动条自动隐藏
+- 状态通知 → 项目上线/离线时弹系统通知
+- 卡片点击 → 直接打开浏览器启动项目
+- 面板互斥 → 添加/扫描/批量删除互不堆叠
+- 端口检测优化 → 批量 lsof + TCP 直连，不再串行等待
 
 ## 安装
 
 ### 直接安装（推荐）
-1. 从 [Releases](https://github.com/xuhyd-code/dock/releases) 下载最新 DMG
+1. 从 [Releases](https://github.com/hgk-shizuya/dock/releases) 下载最新 DMG
 2. 双击打开，拖入 `Applications`
 3. 首次打开若提示「无法验证开发者」→ **系统设置 → 隐私与安全性** → 点击「仍要打开」
 
 ### 从源码运行
 ```bash
-git clone https://github.com/xuhyd-code/dock.git
+git clone https://github.com/hgk-shizuya/dock.git
 cd dock
 npm install
 npm start
@@ -111,6 +114,20 @@ dock/
 - HTML 转义使用 `textContent`，防 XSS
 - 命令执行仅限固定 `lsof` 调用，无用户输入注入
 - 所有外部链接和路径经预定义 IPC 通道
+
+## 更新日志
+
+### v1.1.0
+- ✨ 项目状态变化系统通知
+- ✨ 点击卡片空白处直接启动项目
+- ✨ 面板互斥，不再堆叠
+- 🚀 端口检测从串行 lsof 优化为批量检测 + TCP 直连
+- 🐛 修复表单不弹出、空白处不关闭、FAB 遮挡等多个 UI 问题
+- 🐛 修复菜单栏「开机自启」重复项
+
+### v1.0.0
+- 🎉 首个正式版本
+- 菜单栏托盘、项目管理、端口扫描、批量操作、主题切换
 
 ## License
 
