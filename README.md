@@ -3,7 +3,7 @@
 一个轻量级的 macOS 菜单栏工具，集中管理你所有本地 Web 项目。  
 不用记端口号，图标一点就能看到、就能打开。
 
-![Dock](./assets/icon.png)
+<p align="center"><img src="./assets/icon-readme.png" width="96" alt="Dock" style="border-radius:20%"></p>
 
 ## 为什么需要它？
 
