@@ -165,7 +165,7 @@
   body.theme-light .card-btn.folder.no-path { opacity: 0.3; background: transparent !important; color: #bbb !important; border: 1px dashed rgba(0,0,0,0.1); }
 
   .add-form { display: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; flex-shrink: 0; }
-  .add-form.show { display: block; }
+  .add-form.show { display: block !important; }
   .form-row { display: flex; gap: 10px; align-items: flex-end; }
   .form-field { flex: 1; }
   .form-field label { display: block; font-size: 11px; color: var(--text-tertiary); margin-bottom: 3px; }
@@ -218,11 +218,9 @@
     z-index: 100;
   }
   .fab:hover { background: var(--accent-hover); transform: scale(1.05); }
-  body.batch-mode .fab { display: none; }
   .fab svg { width: 20px; height: 20px; }
   .empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 14px; }
-  body:has(.add-form.show) .fab { display: none; }
-  body.batch-mode .add-form, body.batch-mode #btnAdd { display: none; }
+  body.batch-mode .add-form:not(.show), body.batch-mode #btnAdd { display: none; }
 </style>
 </head>
 <body>
@@ -431,6 +429,7 @@
     document.getElementById('inputPath').value = p.path || '';
     document.getElementById('btnSave').textContent = '更新';
     document.getElementById('addForm').classList.add('show');
+    document.getElementById('btnAdd').style.display = 'none';
   }
 
   async function deleteProject(id) {
@@ -450,11 +449,13 @@
     document.getElementById('inputPath').value = '';
     document.getElementById('btnSave').textContent = '保存';
     document.getElementById('addForm').classList.add('show');
+    document.getElementById('btnAdd').style.display = 'none';
   });
 
   document.getElementById('btnCancelAdd').addEventListener('click', () => {
     document.getElementById('addForm').classList.remove('show');
     editingId = null;
+    document.getElementById('btnAdd').style.display = '';
   });
 
   // Enter key submits form
@@ -573,6 +574,7 @@
             document.getElementById('inputPath').value = pth;
             document.getElementById('btnSave').textContent = '保存';
             document.getElementById('addForm').classList.add('show');
+    document.getElementById('btnAdd').style.display = 'none';
           });
         });
       }
@@ -771,6 +773,7 @@
     document.body.classList.remove('batch-mode');
     document.getElementById('batchBar').classList.remove('show');
     document.querySelectorAll('.project-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('btnAdd').style.display = '';
   }
   // Click outside to exit batch mode
   document.addEventListener('click', (e) => {
